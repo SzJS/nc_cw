@@ -180,66 +180,47 @@ def genetic_alg(N, cross_prob, mut_prob, vertices, weights, max_generations=1000
             print("maximum number of generations reached")
             return tours
 
-def makes_loop(edges, new_edge):
-    edges = edges + new_edge
-    firsts = [edge[0] for edge in edges]
-    seconds = [edge[1] for edge in edges]
-
-    vertices = list({v for edge in edges for v in edge})
-    visited = []
-
-    v = vertices.pop()
-    while len(vertices) > 0:
-        visited.append(v)
-        if v in firsts:
-            i = firsts.index(v)
-            edge = edges[i]
-            v = edge[1]
-            vertices.remove(v)
-        elif v in seconds:
-            i = seconds.index(v)
-            edge = edges[i]
-            v = edge[0]
-            vertices.remove(v)
-        else:
-            v = vertices.pop() # we still have vertices we haven't visited, but that may not be connected
-        if v in visited:
-            return True # if we get a vertex we have already seen, we have a loop
-
-    return False
-
-
-def woac(tours, vertices, weights):
+def woac(tours, vertices):
     """returns an aggregated tour based on the tours given"""
-    occurences = dict()
+    occurance = np.zeros((len(vertices), len(vertices)))
+    # we initialize the occurance matrix to be zero (it's |V| x |V|)
     for tour in tours:
         edges = get_edges(tour)
         for edge in edges:
-            edge = (min(edge), max(edge)) # we "sort" the edge because (a, b) = (b, a)
-            if not edge in occurences.keys():
-                occurences[edge] = 1
-            else:
-                occurences[edge] += 1
+            occurance[edge[0], edge[1]] += 1
+            occurance[edge[1], edge[0]] += 1 # we increment both ways, because matrix is symmetric
 
-    result = []
+    # we start with the most occuring edge
+    # to find this edge, we find the index of the maximal value in the occurance matrix
+    u, v = np.unravel_index(np.argmax(occurance, axis=None), occurance.shape)
 
-    while len(result) < len(vertices):
-        values = occurences.values()
-        values.sort() # we sort in non-decreasing order
-        i = 0
-        while True: # should eventually find a good value, hence the infinite loop
-            ith_most_occuring = values[-i-1]
-            edge = edges.keys()[values.index(ith_most_occuring)]
-            if not makes_loop(result, edge):
-                result.append(edge)
-                occurences.pop(edge) # we want to avoid reusing the same edge, so we remove it
-                # TODO: once a vertex is added twice, we could maybe remove every edge containing it
-                break
-            elif: # we know we have a loop, so we just need to check if we have everything twice
-                vs = [v for e in (edges + edge) for v in e]
-                vs.sort()
-                if vs == sorted(list(vertices) + list(vertices)): # every element occurs twice, so we are done
-                    result.append(edge)
-                    break
+    # we avoid reusing this edge by setting it -1
+    occurance[u, v], occurance[v, u] = -1, -1
+
+    result = [] # edges that have been used twice will be put here
+
+    # we then find the most occuring edge adjacent to one of the vertices of the previous edge
+    value_u, value_v = np.amax(occurance[u]), np.amax(occurance[v])
+    if value_u >= value_v:
+        next_vertex = np.argmax(occurance[u], axis=None)
+        result.append(u)
+        occurance[u, :], occurance[:, u] = -1, -1 # we avoid visiting u again
+        last_vertex = v # we know that v has to be the last city in our tour
+        # because we already know that we will use v as the last vertex, we don't want to visit it again
+        occurance[v, :], occurance[:, v] = -1, -1
+    else:
+        next_vertex = np.argmax(occurance[v], axis=None)
+        result.append(v)
+        occurance[v, :], occurance[:, v] = -1, -1 # we avoid visiting v again
+        last_vertex = u # we know that u has to be the last city in our tour
+        # because we already know that we will use u as the last vertex, we don't want to visit it again
+        occurance[u, :], occurance[:, u] = -1, -1
+    while len(result) < len(vertices) - 1:
+        prev_vertex = next_vertex
+        result.append(prev_vertex)
+        next_vertex = np.argmax(occurance[prev_vertex], axis=None)
+        occurance[prev_vertex, :], occurance[:, prev_vertex] = -1, -1
+
+    result.append(last_vertex)
 
     return result
