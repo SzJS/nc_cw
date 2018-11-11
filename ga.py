@@ -96,6 +96,8 @@ def get_offspring(tour_a, tour_b, vertices):
     # now we use the edge map to create the tour
     tour = []
     city = random.choice(list(vertices))
+    # we remove edges leading to this city (any edge like that would create a loop)
+    edge_map = remove_city_to(edge_map, city)
     tour.append(city)
     while len(tour) < len(vertices):
         prev_city = city
@@ -112,8 +114,8 @@ def get_offspring(tour_a, tour_b, vertices):
 
         if len(tour) == len(vertices) - 1:
             # in the last iteration, the edge_map will be equal to zero everywhere,
-            # so we cannot use the edge map, but there is only one possible vertex left
-            # so we just add that to the tour;
+            # so we cannot use the edge map;
+            # however, there is only one possible vertex left so we just add that to the tour;
             # we find this city by looking at which vertex is not yet in the tour (there is just one)
             city = [vertex for vertex in vertices if not vertex in tour][0]
             tour.append(city)
