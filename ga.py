@@ -226,3 +226,27 @@ def woac(tours, vertices):
     result.append(last_vertex)
 
     return result
+
+def local_search(tour, weights, max_iterations):
+    for i in range(max_iterations):
+        old_tour = tour[:]
+        idx = range(len(tour))
+        i, j, k = random.sample(idx, 3)
+        tour[i], tour[j], tour[k] = tour[j], tour[k], tour[i]
+        old_length = tour_length(old_tour, weights)
+        new_length = tour_length(tour, weights)
+        if new_length > old_length:
+            tour = old_tour # we only revert to the old tour, if the new one is worse
+    return tour
+
+def local_search_post_processing(tours, weights, max_iterations):
+    tours = [local_search(tour, weights, max_iterations) for tour in tours]
+    lengths = [tour_length(tour, weights) for tour in tours]
+    idx = lengths.index(min(lengths))
+    return tours[idx]
+
+def get_weight_matrix(n, lower_bound=1, upper_bound=100):
+    weights = np.random.randint(lower_bound, upper_bound+1, (n, n))
+    weights = (weights + weights.T) # we make the matrix symmetric
+    np.fill_diagonal(weights, 0) # any vertex has a distance of 0 to itself
+    return weights
