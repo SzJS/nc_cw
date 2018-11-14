@@ -7,8 +7,12 @@ import numpy as np
 # note: it's assumed that there is an edge between each vertex
 
 def generate_tour(vertices):
+    """generates a tour from the given vertices, such that first_city is always the first in the tour"""
     result = list(vertices)
     random.shuffle(result)
+    first_city = 0 # 0 is always the first city
+    result = [city for city in result if city != first_city]
+    result = [first_city] + result
     return result
 
 def generate_initial_tours(vertices, N):
@@ -25,100 +29,45 @@ def mutate(tour, mut_prob):
     """a simple swap mutation"""
     # note: the mutation probability is applied only once
     if random.random() <= mut_prob:
-        idx = range(len(tour))
+        idx = range(1, len(tour)) # we never swap the first city (which is 0)
         i, j = random.sample(idx, 2) # note: i = j is possible
         tour[i], tour[j] = tour[j], tour[i]
     return tour
 
-def create_edge_map(tour_a, tour_b, vertices):
-    """needed for the edge recombination crossover operation;
-       returns a (symmetric) matrix of how many times each edge occurs"""
+def get_active(city, edges, possible_cities):
+    """gets the number of active edges for a given city"""
+    return sum(1 for poss_city in possible_cities if (city, poss_city) in edges)
 
-    # we create an edge map (so a matrix for each edge possibe)
-    # each value is initialized to be zero
-    edge_map = np.array([[0 for vertex in vertices] for vertex in vertices])
-
-    # we then get all edges for both tours
-    edges_a = get_edges(tour_a)
-    edges_a = edges_a + [(v, u) for (u, v) in edges_a]
-    # edges are undirected, so we need the "flipped" edges too
-
-    edges_b = get_edges(tour_b)
-    edges_b = edges_b + [(v, u) for (u, v) in edges_b]
-    # edges are undirected, so we need the "flipped" edges too
-
-    edges = edges_a + edges_b
-
-    # and finally, we add up all the edges occuring in either tours
-    for (u, v) in edges:
-        edge_map[u][v] += 1
-
-    return edge_map
-
-def remove_city_from(edge_map, city):
-    """removes all edges that leave from the given city (so sets counts to zero)"""
-
-    edge_map[city, :] = 0
-
-    return edge_map
-
-def remove_city_to(edge_map, city):
-    """removes all edges that lead the given city (so sets counts to zero)"""
-
-    edge_map[:, city] = 0
-
-    return edge_map
-
-def get_city(edge_map, prev_city, tour, vertices):
+def get_city(prev_city, tour, edges, vertices):
     """gets a city from the edge map"""
 
-    edges_from_prev = edge_map[prev_city]
-    non_zero_edges = edges_from_prev[edges_from_prev.nonzero()]
-    if len(non_zero_edges) != 0:
-        # we know that there is an active edge possible
-        # because not every count in the edge map was 0
-
-        smallest = np.amin(non_zero_edges)
-        possible_next = np.where(edge_map == smallest) # the cities with the smallest number of active edges
-        possible_next = zip(possible_next[0], possible_next[1]) # just datatype manipulation
-        possible_next = [v for (u, v) in possible_next if u == prev_city] # edges only from the previous city
+    possible_cities = [city for city in vertices if not city in tour]
+    next_cities = [next_city for (city, next_city) in edges if city == prev_city and next_city in possible_cities]
+    if next_cities == []:
+        min_cities = possible_cities # we need to make a random choice
     else:
-        # we have to randomly choose a new city
-        possible_next = [city for city in vertices if not city in tour]
+        edge_map = [get_active(city, edges, possible_cities) for city in next_cities]
+        min_act_edges = min(edge_map)
+        min_cities = [next_cities[i] for i in range(len(next_cities))
+                      if edge_map[i] == min_act_edges]
 
-    return random.choice(possible_next)
+    return random.choice(min_cities)
 
 def get_offspring(tour_a, tour_b, vertices):
     """uses ER crossover to create an offspring of two parent tours"""
+    
+    edges = get_edges(tour_a) + get_edges(tour_b)
+    edges = edges + [(v, u) for (u, v) in edges] # edges are symmetric
+    edges = set(edges) # duplicates are ignored
 
-    edge_map = create_edge_map(tour_a, tour_b, vertices)
-
-    # now we use the edge map to create the tour
-    tour = []
-    city = random.choice(list(vertices))
-    # we remove edges leading to this city (any edge like that would create a loop)
-    edge_map = remove_city_to(edge_map, city)
-    tour.append(city)
+    first_city = 0
+    tour = [first_city]
+    city = first_city
+    
     while len(tour) < len(vertices):
         prev_city = city
-
-        # we get a new city using our edge map
-        city = get_city(edge_map, prev_city, tour, vertices)
+        city = get_city(prev_city, tour, edges, vertices)
         tour.append(city)
-
-        # we are no longer interested in edges from previous city or edges to the current city
-        # or the edge from the current city to the previous city (as they would create a loop if included)
-        edge_map = remove_city_from(edge_map, prev_city)
-        edge_map = remove_city_to(edge_map, city)
-        edge_map[city, prev_city] = 0
-
-        if len(tour) == len(vertices) - 1:
-            # in the last iteration, the edge_map will be equal to zero everywhere,
-            # so we cannot use the edge map;
-            # however, there is only one possible vertex left so we just add that to the tour;
-            # we find this city by looking at which vertex is not yet in the tour (there is just one)
-            city = [vertex for vertex in vertices if not vertex in tour][0]
-            tour.append(city)
 
     return tour
 
@@ -162,14 +111,12 @@ def pair_up(population):
         pairs.append(pair)
     return pairs
 
-def genetic_alg(N, cross_prob, mut_prob, vertices, weights, max_generations=1000):
+def genetic_alg(N, cross_prob, mut_prob, vertices, weights, max_generations=1000, should_print=False):
     tours = generate_initial_tours(vertices, N)
     generations = 0
     while True:
         generations += 1
-        print("generation: ", generations)
         tour_lengths = [tour_length(tour, weights) for tour in tours]
-        print("minimum tour length: ", min(tour_lengths))
         tours = selection(tours, tour_lengths, vertices, weights, N) # intermediate pop
 
         pairs = pair_up(tours)
@@ -177,9 +124,12 @@ def genetic_alg(N, cross_prob, mut_prob, vertices, weights, max_generations=1000
 
         tours = [tour for pair in pairs for tour in pair]
         tours = [mutate(tour, mut_prob) for tour in tours] # mutation
+        
+        if should_print:
+            print("generation: ", generations)
+            print("min tour: ", min(tour_lengths))
 
         if generations >= max_generations: # two: a threshold is reached for the number of iterations
-            print("maximum number of generations reached")
             return tours
 
 def woac(tours, vertices):
