@@ -1,4 +1,4 @@
-import random
+import math, random
 import numpy as np
 
 # tours are represented as permutations of the edges
@@ -178,8 +178,17 @@ def woac(tours, vertices):
 
     return result
 
-def get_weight_matrix(n, lower_bound=1, upper_bound=100):
-    weights = np.random.randint(lower_bound, upper_bound+1, (n, n))
-    weights = (weights + weights.T) # we make the matrix symmetric
-    np.fill_diagonal(weights, 0) # any vertex has a distance of 0 to itself
-    return weights
+def get_weight_matrix(n, lower_bound=1, upper_bound=100, integers=True):
+    if integers:
+        weights = np.random.randint(lower_bound, upper_bound+1, (n, n))
+        weights = (weights + weights.T) # we make the matrix symmetric
+        np.fill_diagonal(weights, 0) # any vertex has a distance of 0 to itself
+        return weights
+    else:
+        points = np.random.randint(0, upper_bound, (n, 2)) + np.random.rand(n, 2)
+        distances = np.zeros((n, n))
+        for i in range(n):
+            for j in range(i + 1, n):
+                distances[i, j] = math.hypot(points[i, 0] - points[j, 0], points[i, 1] - points[j, 1])
+                distances[j, i] = distances[i, j]
+        return distances
