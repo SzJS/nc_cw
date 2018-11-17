@@ -111,8 +111,9 @@ def pair_up(population):
         pairs.append(pair)
     return pairs
 
-def genetic_alg(N, cross_prob, mut_prob, vertices, weights, max_generations=1000, should_print=False):
-    tours = generate_initial_tours(vertices, N)
+def genetic_alg(N, cross_prob, mut_prob, vertices, weights, max_generations=1000, should_print=False, tours=None):
+    if tours == None:
+        tours = generate_initial_tours(vertices, N)
     generations = 0
     while True:
         generations += 1
@@ -129,7 +130,7 @@ def genetic_alg(N, cross_prob, mut_prob, vertices, weights, max_generations=1000
             print("generation: ", generations)
             print("min tour: ", min(tour_lengths))
 
-        if generations >= max_generations: # two: a threshold is reached for the number of iterations
+        if generations >= max_generations:
             return tours
 
 def woac(tours, vertices):
@@ -176,24 +177,6 @@ def woac(tours, vertices):
     result.append(last_vertex)
 
     return result
-
-def local_search(tour, weights, max_iterations):
-    for i in range(max_iterations):
-        old_tour = tour[:]
-        idx = range(len(tour))
-        i, j, k = random.sample(idx, 3)
-        tour[i], tour[j], tour[k] = tour[j], tour[k], tour[i]
-        old_length = tour_length(old_tour, weights)
-        new_length = tour_length(tour, weights)
-        if new_length > old_length:
-            tour = old_tour # we only revert to the old tour, if the new one is worse
-    return tour
-
-def local_search_post_processing(tours, weights, max_iterations):
-    tours = [local_search(tour, weights, max_iterations) for tour in tours]
-    lengths = [tour_length(tour, weights) for tour in tours]
-    idx = lengths.index(min(lengths))
-    return tours[idx]
 
 def get_weight_matrix(n, lower_bound=1, upper_bound=100):
     weights = np.random.randint(lower_bound, upper_bound+1, (n, n))
